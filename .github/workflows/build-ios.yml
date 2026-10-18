@@ -20,6 +20,8 @@ jobs:
       - name: Install Dependencies
         run: |
           brew install cmake ninja xcodegen meson
+          sudo ln -sf /opt/homebrew/bin/meson /usr/local/bin/meson
+          sudo ln -sf /opt/homebrew/bin/ninja /usr/local/bin/ninja
           echo "/opt/homebrew/bin" >> $GITHUB_PATH
 
       - name: Setup vcpkg
@@ -36,23 +38,15 @@ jobs:
 
       - name: Configure CMake
         run: |
-          export PATH="/opt/homebrew/bin:$PATH"
-
-          # Opsi A: Jika preset SUDAH mengatur konfigurasi iOS dan vcpkg sendiri:
+          export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
           cmake --preset ios-vulkan \
-            -DCMAKE_MAKE_PROGRAM=$(which ninja) \
-            -DMESON_EXECUTABLE=$(which meson)
-
-          # CATATAN: Jika proyek memang mewajibkan toolchain vcpkg manual,
-          # gunakan vcpkg arm64-ios triplet agar tidak dianggap macOS:
-          # cmake --preset ios-vulkan \
-          #   -DCMAKE_TOOLCHAIN_FILE="$HOME/vcpkg/scripts/buildsystems/vcpkg.cmake" \
-          #   -DVCPKG_TARGET_TRIPLET=arm64-ios
+            -DCMAKE_MAKE_PROGRAM=/usr/local/bin/ninja \
+            -DMESON_EXECUTABLE=/usr/local/bin/meson \
+            -DMESON=/usr/local/bin/meson
 
       - name: Build Generals Zero Hour (iOS)
         run: |
-          export PATH="/opt/homebrew/bin:$PATH"
-          # Pakai preset langsung agar path output otomatis sesuai
+          export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
           cmake --build --preset ios-vulkan --target z_generals --config Release
 
       - name: Package to IPA
