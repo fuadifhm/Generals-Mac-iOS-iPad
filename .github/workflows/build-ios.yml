@@ -33,7 +33,7 @@ jobs:
 
       - name: Install Dependencies
         run: |
-          brew install ninja meson pkg-config molten-vk glslang vulkan-headers
+          brew install ninja meson pkg-config molten-vk glslang vulkan-headers sdl3
 
       - name: Set up Vulkan SDK / MoltenVK for iOS
         run: |
@@ -41,7 +41,6 @@ jobs:
           MVK_DIR=$(brew --prefix molten-vk)
           VK_DIR=$(brew --prefix vulkan-headers)
           
-          # Catat path ke Environment Variables untuk step berikutnya
           echo "MVK_LIB_PATH=$MVK_DIR/lib/libMoltenVK.dylib" >> $GITHUB_ENV
           echo "MVK_INC_PATH=$MVK_DIR/include" >> $GITHUB_ENV
           echo "VK_INC_PATH=$VK_DIR/include" >> $GITHUB_ENV
@@ -65,6 +64,9 @@ jobs:
             -DCMAKE_OSX_ARCHITECTURES=arm64 \
             -DSAGE_USE_MOLTENVK=ON \
             -DSAGE_DXVK_USE_LOCAL_FORK=ON \
+            -DSAGE_USE_SDL3=ON \
+            -DSAGE_USE_OPENAL=ON \
+            -DRTS_BUILD_OPTION_SAGE_PATCH=OFF \
             -DCMAKE_MAKE_PROGRAM=/opt/homebrew/bin/ninja \
             -DMESON_EXECUTABLE=/opt/homebrew/bin/meson \
             -DMESON=/opt/homebrew/bin/meson \
