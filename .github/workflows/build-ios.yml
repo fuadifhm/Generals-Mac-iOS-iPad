@@ -20,6 +20,7 @@ jobs:
       - name: Install Dependencies
         run: |
           brew install cmake ninja xcodegen meson
+          echo "/opt/homebrew/bin" >> $GITHUB_PATH
           git clone https://github.com/microsoft/vcpkg "$HOME/vcpkg"
           "$HOME/vcpkg/bootstrap-vcpkg.sh"
           echo "VCPKG_ROOT=$HOME/vcpkg" >> "$GITHUB_ENV"
@@ -32,12 +33,15 @@ jobs:
 
       - name: Configure CMake
         run: |
+          export PATH="/opt/homebrew/bin:$PATH"
           cmake --preset ios-vulkan \
             -DCMAKE_MAKE_PROGRAM=$(which ninja) \
+            -DMESON_EXECUTABLE=$(which meson) \
             -DCMAKE_TOOLCHAIN_FILE="$HOME/vcpkg/scripts/buildsystems/vcpkg.cmake"
 
       - name: Build Generals Zero Hour (iOS)
         run: |
+          export PATH="/opt/homebrew/bin:$PATH"
           cmake --build build/ios-vulkan --target z_generals --config Release
 
       - name: Package to IPA
