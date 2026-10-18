@@ -12,15 +12,12 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Select Xcode
-        run: |
-          sudo xcode-select -s /Applications/Xcode_15.4.app/Contents/Developer
-          echo "DEVELOPER_DIR=/Applications/Xcode_15.4.app/Contents/Developer" >> $GITHUB_ENV
-
       - name: Install Dependencies
         run: |
-          brew install cmake xcodegen ninja
-          echo "VCPKG_ROOT=$VCPKG_INSTALLATION_ROOT" >> $GITHUB_ENV
+          brew install cmake ninja xcodegen
+          git clone https://github.com/microsoft/vcpkg "$HOME/vcpkg"
+          "$HOME/vcpkg/bootstrap-vcpkg.sh"
+          echo "VCPKG_ROOT=$HOME/vcpkg" >> "$GITHUB_ENV"
 
       - name: Setup Dependencies & Fonts
         run: |
@@ -29,8 +26,11 @@ jobs:
           ./scripts/build/ios/stage-fonts.sh
 
       - name: Configure CMake
+        env:
+          VULKAN_SDK: /usr/local/share/vulkan  # atau path yang benar di runner
         run: |
-          cmake --preset ios-vulkan -DCMAKE_MAKE_PROGRAM=$(which ninja)
+          export VCPKG_ROOT="$HOME/vcpkg"
+          cmake --preset ios-vulkan
 
       - name: Build Generals Zero Hour (iOS)
         run: |
