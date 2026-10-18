@@ -2,62 +2,57 @@ name: Build iOS IPA
 
 on:
   workflow_dispatch:
+  push:
+    branches: [ "main" ]
 
 jobs:
   build:
     runs-on: macos-14
+
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:
           submodules: recursive
 
-      - name: Select Xcode
-        run: |
-          sudo xcode-select -s /Applications/Xcode_15.4.app/Contents/Developer
-          echo "DEVELOPER_DIR=/Applications/Xcode_15.4.app/Contents/Developer" >> $GITHUB_ENV
+      - name: Set up Xcode
+        run: sudo xcode-select -s /Applications/Xcode_15.4.app/Contents/Developer
 
       - name: Install Dependencies
         run: |
-          brew install cmake ninja xcodegen meson
-          echo "/opt/homebrew/bin" >> $GITHUB_PATH
+          brew install ninja meson pkg-config molten-vk glslang
 
-      - name: Setup vcpkg
+      - name: Set up vcpkg
         run: |
-          git clone https://github.com/microsoft/vcpkg "$HOME/vcpkg"
-          "$HOME/vcpkg/bootstrap-vcpkg.sh"
-          echo "VCPKG_ROOT=$HOME/vcpkg" >> "$GITHUB_ENV"
-
-      - name: Setup Dependencies & MoltenVK
-        run: |
-          chmod +x scripts/build/ios/*.sh
-          ./scripts/build/ios/fetch-moltenvk.sh
-          ./scripts/build/ios/stage-fonts.sh
+          git clone https://github.com/microsoft/vcpkg.git $HOME/vcpkg
+          $HOME/vcpkg/bootstrap-vcpkg.sh
+          echo "VCPKG_ROOT=$HOME/vcpkg" >> $GITHUB_ENV
 
       - name: Configure CMake
         run: |
           export PATH="/opt/homebrew/bin:$PATH"
-          cmake --preset ios-vulkan \
+          cmake -S . -B build/ios-vulkan \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_SYSTEM_NAME=iOS \
+            -DCMAKE_OSX_SYSROOT=iphoneos \
+            -DCMAKE_OSX_ARCHITECTURES=arm64 \
             -DSAGE_USE_MOLTENVK=ON \
-            -DCMAKE_PROGRAM_PATH=/opt/homebrew/bin \
             -DCMAKE_MAKE_PROGRAM=/opt/homebrew/bin/ninja \
             -DMESON_EXECUTABLE=/opt/homebrew/bin/meson \
-            -DMESON=/opt/homebrew/bin/meson
+            -DMESON=/opt/homebrew/bin/meson \
+            -DCMAKE_TOOLCHAIN_FILE="$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" \
+            -DVCPKG_TARGET_TRIPLET=arm64-ios
 
       - name: Build Generals Zero Hour (iOS)
         run: |
           export PATH="/opt/homebrew/bin:$PATH"
-          cmake --build --preset ios-vulkan --target z_generals --config Release
+          cmake --build build/ios-vulkan --target z_generals --config Release
 
-      - name: Package to IPA
+      - name: Package IPA
         run: |
           mkdir -p build/Payload
-          APP_PATH=$(find . -name "*.app" -type d | grep -v "DerivedData" | head -n 1)
-          if [ -z "$APP_PATH" ]; then
-            echo "Error: .app bundle not found!"
-            exit 1
-          fi
-          cp -r "$APP_PATH" build/Payload/
+          find build/ios-vulkan -name "*.app" -exec cp -r {} build/Payload/ \;
           cd build && zip -r GeneralsZH.ipa Payload
 
       - name: Upload IPA Artifact
