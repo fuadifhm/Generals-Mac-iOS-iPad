@@ -25,7 +25,7 @@ jobs:
 
       - name: Install Dependencies
         run: |
-          brew install ninja meson pkg-config molten-vk glslang
+          brew install ninja meson pkg-config molten-vk glslang vulkan-headers
 
       - name: Set up vcpkg
         run: |
@@ -33,9 +33,25 @@ jobs:
           $HOME/vcpkg/bootstrap-vcpkg.sh
           echo "VCPKG_ROOT=$HOME/vcpkg" >> $GITHUB_ENV
 
+      - name: Cache vcpkg installed artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/vcpkg/archives
+            build/ios-vulkan/vcpkg_installed
+          key: vcpkg-ios-${{ hashFiles('vcpkg.json') }}
+          restore-keys: |
+            vcpkg-ios-
+
       - name: Configure CMake
         run: |
           export PATH="/opt/homebrew/bin:$PATH"
+          export PKG_CONFIG_PATH="/opt/homebrew/lib/pkgconfig:/opt/homebrew/share/pkgconfig:$PKG_CONFIG_PATH"
+          
+          # Tentukan lokasi MoltenVK dari Homebrew
+          MVK_DIR=$(brew --prefix molten-vk)
+          VK_HEADERS_DIR=$(brew --prefix vulkan-headers)
+
           cmake -S . -B build/ios-vulkan \
             -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
@@ -48,7 +64,11 @@ jobs:
             -DMESON_EXECUTABLE=/opt/homebrew/bin/meson \
             -DMESON=/opt/homebrew/bin/meson \
             -DCMAKE_TOOLCHAIN_FILE="$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" \
-            -DVCPKG_TARGET_TRIPLET=arm64-ios
+            -DVCPKG_TARGET_TRIPLET=arm64-ios \
+            -DVulkan_INCLUDE_DIR="$VK_HEADERS_DIR/include" \
+            -DVulkan_LIBRARY="$MVK_DIR/lib/libMoltenVK.dylib" \
+            -DMoltenVK_INCLUDE_DIR="$MVK_DIR/include" \
+            -DMoltenVK_LIBRARY="$MVK_DIR/lib/libMoltenVK.dylib"
 
       - name: Build Generals Zero Hour (iOS)
         run: |
