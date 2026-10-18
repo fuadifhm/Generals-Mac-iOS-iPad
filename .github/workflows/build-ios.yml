@@ -17,14 +17,13 @@ jobs:
           sudo xcode-select -s /Applications/Xcode_15.4.app/Contents/Developer
           echo "DEVELOPER_DIR=/Applications/Xcode_15.4.app/Contents/Developer" >> $GITHUB_ENV
 
-      - name: Install build deps
-        run: |
-          brew install meson ninja
-
       - name: Install Dependencies
         run: |
           brew install cmake ninja xcodegen meson
           echo "/opt/homebrew/bin" >> $GITHUB_PATH
+
+      - name: Setup vcpkg
+        run: |
           git clone https://github.com/microsoft/vcpkg "$HOME/vcpkg"
           "$HOME/vcpkg/bootstrap-vcpkg.sh"
           echo "VCPKG_ROOT=$HOME/vcpkg" >> "$GITHUB_ENV"
@@ -38,23 +37,31 @@ jobs:
       - name: Configure CMake
         run: |
           export PATH="/opt/homebrew/bin:$PATH"
+
+          # Opsi A: Jika preset SUDAH mengatur konfigurasi iOS dan vcpkg sendiri:
           cmake --preset ios-vulkan \
             -DCMAKE_MAKE_PROGRAM=$(which ninja) \
-            -DMESON_EXECUTABLE=$(which meson) \
-            -DCMAKE_TOOLCHAIN_FILE="$HOME/vcpkg/scripts/buildsystems/vcpkg.cmake"
+            -DMESON_EXECUTABLE=$(which meson)
+
+          # CATATAN: Jika proyek memang mewajibkan toolchain vcpkg manual,
+          # gunakan vcpkg arm64-ios triplet agar tidak dianggap macOS:
+          # cmake --preset ios-vulkan \
+          #   -DCMAKE_TOOLCHAIN_FILE="$HOME/vcpkg/scripts/buildsystems/vcpkg.cmake" \
+          #   -DVCPKG_TARGET_TRIPLET=arm64-ios
 
       - name: Build Generals Zero Hour (iOS)
         run: |
           export PATH="/opt/homebrew/bin:$PATH"
-          cmake --build build/ios-vulkan --target z_generals --config Release
+          # Pakai preset langsung agar path output otomatis sesuai
+          cmake --build --preset ios-vulkan --target z_generals --config Release
 
       - name: Package to IPA
         run: |
           mkdir -p build/Payload
-          APP_PATH=$(find build/ios-vulkan -name "*.app" -type d | head -n 1)
+          APP_PATH=$(find . -name "*.app" -type d | grep -v "DerivedData" | head -n 1)
           if [ -z "$APP_PATH" ]; then
             echo "Error: .app bundle not found!"
-            find build/ios-vulkan -type d -name "*generals*"
+            find . -maxdepth 4 -type d -name "*generals*"
             exit 1
           fi
           echo "Found App: $APP_PATH"
