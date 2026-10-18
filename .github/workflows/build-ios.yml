@@ -16,7 +16,7 @@ jobs:
           submodules: recursive
           fetch-depth: 0
 
-      - name: Update iOS Submodules
+      - name: Initialize Submodules
         run: |
           git submodule update --init --recursive references/fbraz3-dxvk || git submodule update --init --recursive
 
@@ -43,6 +43,7 @@ jobs:
             -DCMAKE_OSX_SYSROOT=iphoneos \
             -DCMAKE_OSX_ARCHITECTURES=arm64 \
             -DSAGE_USE_MOLTENVK=ON \
+            -DSAGE_DXVK_USE_LOCAL_FORK=ON \
             -DCMAKE_MAKE_PROGRAM=/opt/homebrew/bin/ninja \
             -DMESON_EXECUTABLE=/opt/homebrew/bin/meson \
             -DMESON=/opt/homebrew/bin/meson \
