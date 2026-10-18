@@ -23,9 +23,28 @@ jobs:
       - name: Set up Xcode
         run: sudo xcode-select -s /Applications/Xcode_15.4.app/Contents/Developer
 
+      - name: Cache vcpkg archives
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/vcpkg/archives
+          key: vcpkg-ios-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}
+          restore-keys: |
+            vcpkg-ios-${{ runner.os }}-
+
       - name: Install Dependencies
         run: |
           brew install ninja meson pkg-config molten-vk glslang vulkan-headers
+
+      - name: Set up Vulkan SDK / MoltenVK for iOS
+        run: |
+          echo "Setting up MoltenVK for CMake FindVulkan..."
+          MVK_DIR=$(brew --prefix molten-vk)
+          VK_DIR=$(brew --prefix vulkan-headers)
+          
+          # Catat path ke Environment Variables untuk step berikutnya
+          echo "MVK_LIB_PATH=$MVK_DIR/lib/libMoltenVK.dylib" >> $GITHUB_ENV
+          echo "MVK_INC_PATH=$MVK_DIR/include" >> $GITHUB_ENV
+          echo "VK_INC_PATH=$VK_DIR/include" >> $GITHUB_ENV
 
       - name: Set up vcpkg
         run: |
@@ -33,24 +52,10 @@ jobs:
           $HOME/vcpkg/bootstrap-vcpkg.sh
           echo "VCPKG_ROOT=$HOME/vcpkg" >> $GITHUB_ENV
 
-      - name: Cache vcpkg installed artifacts
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cache/vcpkg/archives
-            build/ios-vulkan/vcpkg_installed
-          key: vcpkg-ios-${{ hashFiles('vcpkg.json') }}
-          restore-keys: |
-            vcpkg-ios-
-
       - name: Configure CMake
         run: |
           export PATH="/opt/homebrew/bin:$PATH"
           export PKG_CONFIG_PATH="/opt/homebrew/lib/pkgconfig:/opt/homebrew/share/pkgconfig:$PKG_CONFIG_PATH"
-          
-          # Tentukan lokasi MoltenVK dari Homebrew
-          MVK_DIR=$(brew --prefix molten-vk)
-          VK_HEADERS_DIR=$(brew --prefix vulkan-headers)
 
           cmake -S . -B build/ios-vulkan \
             -G Ninja \
@@ -65,10 +70,10 @@ jobs:
             -DMESON=/opt/homebrew/bin/meson \
             -DCMAKE_TOOLCHAIN_FILE="$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" \
             -DVCPKG_TARGET_TRIPLET=arm64-ios \
-            -DVulkan_INCLUDE_DIR="$VK_HEADERS_DIR/include" \
-            -DVulkan_LIBRARY="$MVK_DIR/lib/libMoltenVK.dylib" \
-            -DMoltenVK_INCLUDE_DIR="$MVK_DIR/include" \
-            -DMoltenVK_LIBRARY="$MVK_DIR/lib/libMoltenVK.dylib"
+            -DVulkan_INCLUDE_DIR="$VK_INC_PATH" \
+            -DVulkan_LIBRARY="$MVK_LIB_PATH" \
+            -DVulkan_MoltenVK_INCLUDE_DIR="$MVK_INC_PATH" \
+            -DVulkan_MoltenVK_LIBRARY="$MVK_LIB_PATH"
 
       - name: Build Generals Zero Hour (iOS)
         run: |
