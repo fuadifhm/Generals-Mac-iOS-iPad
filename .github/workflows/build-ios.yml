@@ -44,7 +44,6 @@ jobs:
             -DMESON_EXECUTABLE=/opt/homebrew/bin/meson \
             -DMESON=/opt/homebrew/bin/meson
 
-
       - name: Build Generals Zero Hour (iOS)
         run: |
           export PATH="/opt/homebrew/bin:$PATH"
@@ -56,14 +55,10 @@ jobs:
           APP_PATH=$(find . -name "*.app" -type d | grep -v "DerivedData" | head -n 1)
           if [ -z "$APP_PATH" ]; then
             echo "Error: .app bundle not found!"
-            find . -maxdepth 4 -type d -name "*generals*"
             exit 1
           fi
-          echo "Found App: $APP_PATH"
           cp -r "$APP_PATH" build/Payload/
-          cd build
-          zip -r GeneralsZH.ipa Payload
-          cd ..
+          cd build && zip -r GeneralsZH.ipa Payload
 
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
