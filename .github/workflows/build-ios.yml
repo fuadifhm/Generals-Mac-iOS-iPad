@@ -20,8 +20,6 @@ jobs:
       - name: Install Dependencies
         run: |
           brew install cmake ninja xcodegen meson
-          sudo ln -sf /opt/homebrew/bin/meson /usr/local/bin/meson
-          sudo ln -sf /opt/homebrew/bin/ninja /usr/local/bin/ninja
           echo "/opt/homebrew/bin" >> $GITHUB_PATH
 
       - name: Setup vcpkg
@@ -38,15 +36,16 @@ jobs:
 
       - name: Configure CMake
         run: |
-          export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
+          export PATH="/opt/homebrew/bin:$PATH"
           cmake --preset ios-vulkan \
-            -DCMAKE_MAKE_PROGRAM=/usr/local/bin/ninja \
-            -DMESON_EXECUTABLE=/usr/local/bin/meson \
-            -DMESON=/usr/local/bin/meson
+            -DCMAKE_PROGRAM_PATH=/opt/homebrew/bin \
+            -DCMAKE_MAKE_PROGRAM=/opt/homebrew/bin/ninja \
+            -DMESON_EXECUTABLE=/opt/homebrew/bin/meson \
+            -DMESON=/opt/homebrew/bin/meson
 
       - name: Build Generals Zero Hour (iOS)
         run: |
-          export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
+          export PATH="/opt/homebrew/bin:$PATH"
           cmake --build --preset ios-vulkan --target z_generals --config Release
 
       - name: Package to IPA
