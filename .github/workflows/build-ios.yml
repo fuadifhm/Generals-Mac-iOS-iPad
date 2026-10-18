@@ -38,10 +38,12 @@ jobs:
         run: |
           export PATH="/opt/homebrew/bin:$PATH"
           cmake --preset ios-vulkan \
+            -DSAGE_USE_MOLTENVK=ON \
             -DCMAKE_PROGRAM_PATH=/opt/homebrew/bin \
             -DCMAKE_MAKE_PROGRAM=/opt/homebrew/bin/ninja \
             -DMESON_EXECUTABLE=/opt/homebrew/bin/meson \
             -DMESON=/opt/homebrew/bin/meson
+
 
       - name: Build Generals Zero Hour (iOS)
         run: |
