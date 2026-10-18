@@ -9,47 +9,44 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - name: Select Xcode
-        run: |
-          sudo xcode-select -s /Applications/Xcode_15.4.app/Contents/Developer
-          echo "DEVELOPER_DIR=/Applications/Xcode_15.4.app/Contents/Developer" >> $GITHUB_ENV
 
       - name: Install Dependencies
         run: |
           brew install cmake ninja xcodegen
           git clone https://github.com/microsoft/vcpkg "$HOME/vcpkg"
           "$HOME/vcpkg/bootstrap-vcpkg.sh"
-          echo "VCPKG_ROOT=$HOME/vcpkg" >> "$GITHUB_ENV"
 
-      - name: Setup Dependencies & Fonts (best effort)
+      - name: Extract CI assets (safe + password support)
+        env:
+          ASSET_PASS: ${{ secrets.CI_ASSETS_PASSWORD }}
         run: |
-          chmod +x scripts/build/ios/*.sh || true
-          if [ -f scripts/build/ios/fetch-moltenvk.sh ]; then
-            ./scripts/build/ios/fetch-moltenvk.sh || echo "fetch-moltenvk failed - continuing"
-          else
-            echo "fetch-moltenvk.sh not present, skipping"
+          set -euo pipefail
+          ARCHIVE="ci-assets-repo/generalszh.7z"
+          DEST="/tmp/game-artifact"
+
+          if [ ! -f "$ARCHIVE" ]; then
+            echo "ERROR: $ARCHIVE not found"
+            exit 1
           fi
-          if [ -f scripts/build/ios/stage-fonts.sh ]; then
-            ./scripts/build/ios/stage-fonts.sh || echo "stage-fonts failed - continuing"
+
+          echo "Archive size: $(stat -c%s "$ARCHIVE" 2>/dev/null || stat -f%z "$ARCHIVE")"
+          7z l "$ARCHIVE" || true
+
+          if 7z l "$ARCHIVE" 2>&1 | grep -qiE "Encrypted|Wrong password|Cannot open encrypted|Can't open as archive"; then
+            if [ -z "${ASSET_PASS:-}" ]; then
+              echo "Archive is encrypted but CI_ASSETS_PASSWORD is not set"
+              exit 1
+            fi
+            echo "Trying extraction with password..."
+            7z x -y -p"$ASSET_PASS" "$ARCHIVE" -o"$DEST"
           else
-            echo "stage-fonts.sh not present, skipping"
+            echo "Extracting without password..."
+            7z x -y "$ARCHIVE" -o"$DEST"
           fi
 
       - name: Configure CMake
-        env:
-          VULKAN_SDK: /usr/local/share/vulkan
         run: |
-          export VCPKG_ROOT="$HOME/vcpkg"
-          CMAKE_MAKE_PROGRAM=$(which ninja) cmake --preset ios-vulkan || {
-            echo "CMake configure failed — printing diagnostics"
-            [ -f CMakeCache.txt ] && sed -n '1,200p' CMakeCache.txt
-            echo "=== CMakePresets.json ==="
-            sed -n '1,200p' CMakePresets.json || true
-            exit 1
-          }
+          cmake --preset ios-vulkan
 
       - name: Build Generals Zero Hour (iOS)
         run: |
