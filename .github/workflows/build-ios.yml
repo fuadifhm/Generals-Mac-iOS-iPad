@@ -1,0 +1,52 @@
+name: Build iOS IPA
+
+on:
+  workflow_dispatch: # Memungkinkan tombol manual "Run workflow"
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Dependencies
+        run: |
+          brew install cmake xcodegen ninja
+
+      - name: Setup Dependencies & Fonts
+        run: |
+          chmod +x scripts/build/ios/*.sh
+          ./scripts/build/ios/fetch-moltenvk.sh
+          ./scripts/build/ios/stage-fonts.sh
+
+      - name: Configure CMake
+        run: |
+          cmake --preset ios-vulkan
+
+      - name: Build Generals Zero Hour (iOS)
+        run: |
+          cmake --build build/ios-vulkan --target z_generals --config Release
+
+      - name: Package to IPA
+        run: |
+          mkdir -p build/Payload
+          # Cari folder .app hasil build dan pindahkan ke Payload
+          APP_PATH=$(find build/ios-vulkan -name "*.app" -type d | head -n 1)
+          if [ -z "$APP_PATH" ]; then
+            echo "Error: .app file not found!"
+            exit 1
+          fi
+          echo "Found App: $APP_PATH"
+          cp -r "$APP_PATH" build/Payload/
+          cd build
+          zip -r GeneralsZH.ipa Payload
+          cd ..
+
+      - name: Upload IPA Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: GeneralsZH-iOS-IPA
+          path: build/GeneralsZH.ipa
