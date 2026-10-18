@@ -9,44 +9,86 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          lfs: true
 
       - name: Install Dependencies
         run: |
-          brew install cmake ninja xcodegen
+          brew install cmake ninja xcodegen p7zip
           git clone https://github.com/microsoft/vcpkg "$HOME/vcpkg"
           "$HOME/vcpkg/bootstrap-vcpkg.sh"
+          echo "VCPKG_ROOT=$HOME/vcpkg" >> "$GITHUB_ENV"
 
       - name: Extract CI assets (safe + password support)
         env:
           ASSET_PASS: ${{ secrets.CI_ASSETS_PASSWORD }}
         run: |
           set -euo pipefail
-          ARCHIVE="ci-assets-repo/generalszh.7z"
-          DEST="/tmp/game-artifact"
+          ARCH="$GITHUB_WORKSPACE/ci-assets-repo/generalszh.7z"
+          DEST_MAC="/tmp/game-bundle/GeneralsXZH.app/Contents/Resources/bin"
+          DEST_LINUX="$HOME/.local/share/GeneralsX/GeneralsZH"
+          if [ "$(uname -s)" = "Darwin" ]; then
+            DEST="$DEST_MAC"
+          else
+            DEST="$DEST_LINUX"
+          fi
+          mkdir -p "$DEST"
 
-          if [ ! -f "$ARCHIVE" ]; then
-            echo "ERROR: $ARCHIVE not found"
+          if [ ! -f "$ARCH" ]; then
+            echo "ERROR: archive not found at $ARCH"
+            ls -la "$(dirname "$ARCH")" || true
             exit 1
           fi
 
-          echo "Archive size: $(stat -c%s "$ARCHIVE" 2>/dev/null || stat -f%z "$ARCHIVE")"
-          7z l "$ARCHIVE" || true
+          echo "Archive size: $(stat -c%s "$ARCH" 2>/dev/null || stat -f%z "$ARCH" || true)"
+          echo "Header (first 16 bytes):"
+          head -c 16 "$ARCH" | xxd -g 1 || true
 
-          if 7z l "$ARCHIVE" 2>&1 | grep -qiE "Encrypted|Wrong password|Cannot open encrypted|Can't open as archive"; then
-            if [ -z "${ASSET_PASS:-}" ]; then
-              echo "Archive is encrypted but CI_ASSETS_PASSWORD is not set"
-              exit 1
-            fi
-            echo "Trying extraction with password..."
-            7z x -y -p"$ASSET_PASS" "$ARCHIVE" -o"$DEST"
-          else
-            echo "Extracting without password..."
-            7z x -y "$ARCHIVE" -o"$DEST"
+          # detect git-lfs pointer
+          if head -n 2 "$ARCH" | grep -qi "git-lfs"; then
+            echo "Detected Git LFS pointer instead of real archive. Ensure actions/checkout uses lfs: true and run 'git lfs pull' or upload the real archive."
+            head -n 6 "$ARCH" || true
+            exit 1
           fi
 
+          echo "Listing archive for diagnostics..."
+          LIST_OUT=$(7z l "$ARCH" 2>&1 || true)
+          echo "$LIST_OUT" | sed -n '1,200p'
+
+          if echo "$LIST_OUT" | grep -Ei "Encrypted|Wrong password|Cannot open encrypted|Can't open as archive|Can't open|Can not open encrypted" >/dev/null 2>&1; then
+            echo "Archive appears encrypted or unreadable."
+            if [ -z "${ASSET_PASS:-}" ]; then
+              echo "No secret CI_ASSETS_PASSWORD set — add it in repo Settings → Secrets → Actions"
+              exit 1
+            fi
+            echo "Attempting extraction with provided secret..."
+            7z x -y -p"$ASSET_PASS" "$ARCH" -o"$DEST"
+            EX=$?
+            if [ $EX -ne 0 ]; then
+              echo "Extraction with password failed (exit $EX)."
+              exit $EX
+            fi
+          else
+            echo "Archive readable — extracting without password..."
+            7z x -y "$ARCH" -o"$DEST"
+          fi
+
+          echo "Extraction finished. Listing $DEST:"
+          ls -la "$DEST" || true
+
       - name: Configure CMake
+        env:
+          VULKAN_SDK: /usr/local/share/vulkan
         run: |
-          cmake --preset ios-vulkan
+          export VCPKG_ROOT="$HOME/vcpkg"
+          CMAKE_MAKE_PROGRAM=$(which ninja) cmake --preset ios-vulkan || {
+            echo "CMake configure failed — printing diagnostics"
+            [ -f CMakeCache.txt ] && sed -n '1,200p' CMakeCache.txt
+            echo "=== CMakePresets.json ==="
+            sed -n '1,200p' CMakePresets.json || true
+            exit 1
+          }
 
       - name: Build Generals Zero Hour (iOS)
         run: |
@@ -74,8 +116,6 @@ jobs:
             echo "Warning: .app file not found — skipping IPA packaging"
             echo "Dumping build/ios-vulkan contents for debug:"
             find build/ios-vulkan -maxdepth 5 -ls || true
-            # create an empty placeholder archive so artifact step can upload something
-            echo "No .app — creating placeholder text file"
             mkdir -p build/debug-artifact
             echo "No .app was produced on runner $(hostname) at $(date)" > build/debug-artifact/NO_APP.txt
             exit 0
