@@ -84,6 +84,3 @@ jobs:
         with:
           name: GeneralsZH-iOS-IPA
           path: build/GeneralsZH.ipa
-      #if defined(RTS_ENABLE_CRASHDUMP) && defined(_WIN32)
-      #include "DbgHelpLoader.h"
-      #endif
