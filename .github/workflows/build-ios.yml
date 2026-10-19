@@ -65,8 +65,10 @@ jobs:
       - name: Cache vcpkg archives
         uses: actions/cache@v4
         with:
-          path: ~/.cache/vcpkg/archives
-          key: vcpkg-ios-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}
+          path: |
+            ~/.cache/vcpkg/archives
+            $HOME/vcpkg
+          key: vcpkg-ios-${{ runner.os }}-${{ hashFiles('vcpkg.json', '**/vcpkg.json') }}
           restore-keys: |
             vcpkg-ios-${{ runner.os }}-
 
@@ -88,9 +90,31 @@ jobs:
 
       - name: Set up vcpkg
         run: |
-          git clone https://github.com/microsoft/vcpkg.git $HOME/vcpkg
-          $HOME/vcpkg/bootstrap-vcpkg.sh
+          if [ ! -d "$HOME/vcpkg" ]; then
+            git clone https://github.com/microsoft/vcpkg.git "$HOME/vcpkg"
+          fi
+          "$HOME/vcpkg/bootstrap-vcpkg.sh"
           echo "VCPKG_ROOT=$HOME/vcpkg" >> $GITHUB_ENV
+
+      - name: Install vcpkg dependencies with retry
+        env:
+          VCPKG_ROOT: ${{ env.VCPKG_ROOT }}
+        run: |
+          set -euo pipefail
+          MAX_TRIES=4
+          for i in $(seq 1 "$MAX_TRIES"); do
+            echo "Attempt $i/$MAX_TRIES: vcpkg install"
+            if "$VCPKG_ROOT/vcpkg" install --triplet arm64-ios --feature-flags=manifests --x-manifest-root=. --x-install-root="$HOME/vcpkg_installed"; then
+              echo "vcpkg install succeeded"
+              exit 0
+            fi
+            echo "vcpkg install failed on attempt $i/$MAX_TRIES"
+            if [ "$i" -lt "$MAX_TRIES" ]; then
+              sleep $((i * 15))
+            fi
+          done
+          echo "vcpkg install failed after $MAX_TRIES attempts" >&2
+          exit 1
 
       - name: Configure CMake
         run: |
