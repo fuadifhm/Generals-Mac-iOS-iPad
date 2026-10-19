@@ -20,6 +20,7 @@ jobs:
         run: |
           mkdir -p references
           if [ ! -d "references/fbraz3-dxvk/.git" ]; then
+            rm -rf references/fbraz3-dxvk
             git clone --depth 1 https://github.com/fbraz3/dxvk.git references/fbraz3-dxvk
           fi
 
