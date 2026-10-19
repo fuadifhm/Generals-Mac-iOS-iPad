@@ -68,6 +68,7 @@ jobs:
             -DSAGE_USE_OPENAL=ON \
             -DSAGE_USE_GLM=ON \
             -DRTS_BUILD_OPTION_SAGE_PATCH=OFF \
+            -DRTS_ENABLE_CRASHDUMP=OFF \
             -DCMAKE_MAKE_PROGRAM=/opt/homebrew/bin/ninja \
             -DMESON_EXECUTABLE=/opt/homebrew/bin/meson \
             -DMESON=/opt/homebrew/bin/meson \
