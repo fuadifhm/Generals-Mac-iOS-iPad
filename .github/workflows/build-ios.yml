@@ -16,9 +16,12 @@ jobs:
           submodules: recursive
           fetch-depth: 0
 
-      - name: Initialize Submodules
+      - name: Setup references/fbraz3-dxvk
         run: |
-          git submodule update --init --recursive references/fbraz3-dxvk || git submodule update --init --recursive
+          mkdir -p references
+          if [ ! -d "references/fbraz3-dxvk/.git" ]; then
+            git clone --depth 1 https://github.com/fbraz3/dxvk.git references/fbraz3-dxvk
+          fi
 
       - name: Set up Xcode
         run: sudo xcode-select -s /Applications/Xcode_15.4.app/Contents/Developer
@@ -61,6 +64,7 @@ jobs:
             -DCMAKE_OSX_DEPLOYMENT_TARGET=15.0 \
             -DCMAKE_OSX_ARCHITECTURES=arm64 \
             -DSAGE_USE_MOLTENVK=ON \
+            -DSAGE_DXVK_USE_LOCAL_FORK=ON \
             -DRTS_ENABLE_CRASHDUMP=OFF \
             -DCMAKE_TOOLCHAIN_FILE="$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" \
             -DVCPKG_TARGET_TRIPLET=arm64-ios \
