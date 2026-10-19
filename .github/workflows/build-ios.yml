@@ -16,13 +16,48 @@ jobs:
           submodules: recursive
           fetch-depth: 0
 
-      - name: Setup references/fbraz3-dxvk
+      - name: Prepare references/fbraz3-dxvk and apply iOS patch (robust)
         run: |
+          set -euo pipefail
           mkdir -p references
           rm -rf references/fbraz3-dxvk
           git clone https://github.com/fbraz3/dxvk.git references/fbraz3-dxvk
           cd references/fbraz3-dxvk
-          git checkout 46a3bc01
+          # Pastikan commit tersedia; fallback fetch apabila checkout gagal
+          if ! git checkout 46a3bc01 >/dev/null 2>&1; then
+            git fetch --all --tags
+            git checkout 46a3bc01
+          fi
+
+          # Periksa apakah patch sudah ter-aplikasi (reverse check).
+          if git apply --reverse --check ../../Patches/dxvk-ios.patch >/dev/null 2>&1; then
+            echo "DXVK patch: already applied"
+          else
+            echo "DXVK patch: not applied — attempting apply (3-way fallback)"
+            # Coba apply normal dulu, lalu fallback ke --3way dengan whitespace fix
+            if git apply --whitespace=fix ../../Patches/dxvk-ios.patch >/dev/null 2>&1; then
+              echo "Applied patch (clean)"
+              git add -A || true
+              git commit -m "CI: apply dxvk-ios.patch" || true
+            elif git apply --3way --whitespace=fix ../../Patches/dxvk-ios.patch >/dev/null 2>&1; then
+              echo "Applied patch with 3-way fallback"
+              git add -A || true
+              git commit -m "CI: apply dxvk-ios.patch (3way)" || true
+            else
+              echo "ERROR: Failed to apply Patches/dxvk-ios.patch to references/fbraz3-dxvk" >&2
+              echo "---- diagnostics: show file heads and nearby lines ----"
+              echo "---- src/vulkan/vulkan_loader.cpp (head 80 lines) ----"
+              sed -n '1,120p' src/vulkan/vulkan_loader.cpp || true
+              echo "---- src/wsi/sdl3/wsi_platform_sdl3_funcs.h (head 80 lines) ----"
+              sed -n '1,120p' src/wsi/sdl3/wsi_platform_sdl3_funcs.h || true
+              echo "---- src/wsi/sdl3/wsi_window_sdl3.cpp (head 120 lines) ----"
+              sed -n '1,200p' src/wsi/sdl3/wsi_window_sdl3.cpp || true
+              echo "---- git status / recent log ----"
+              git --no-pager status --porcelain --untracked-files=all || true
+              git --no-pager log -n 5 --pretty=oneline || true
+              exit 1
+            fi
+          fi
 
       - name: Set up Xcode
         run: sudo xcode-select -s /Applications/Xcode_15.4.app/Contents/Developer
@@ -37,6 +72,7 @@ jobs:
 
       - name: Install Dependencies
         run: |
+          brew update
           brew install ninja meson pkg-config molten-vk glslang vulkan-headers sdl3
 
       - name: Set up Vulkan SDK / MoltenVK for iOS
@@ -44,7 +80,8 @@ jobs:
           echo "Setting up MoltenVK for CMake FindVulkan..."
           MVK_DIR=$(brew --prefix molten-vk)
           VK_DIR=$(brew --prefix vulkan-headers)
-          
+          echo "MVK_DIR=${MVK_DIR}"
+          echo "VK_DIR=${VK_DIR}"
           echo "MVK_LIB_PATH=$MVK_DIR/lib/libMoltenVK.dylib" >> $GITHUB_ENV
           echo "MVK_INC_PATH=$MVK_DIR/include" >> $GITHUB_ENV
           echo "VK_INC_PATH=$VK_DIR/include" >> $GITHUB_ENV
