@@ -18,7 +18,7 @@
 
 #pragma once
 
-#ifdef RTS_ENABLE_CRASHDUMP
+#if defined(RTS_ENABLE_CRASHDUMP) && defined(_WIN32)
 #include "DbgHelpLoader.h"
 
 enum DumpType CPP_11(: Char)
@@ -41,56 +41,26 @@ class MiniDumper
 
 public:
 	MiniDumper();
-	Bool IsInitialized() const;
-	void TriggerMiniDump(DumpType dumpType);
-	void TriggerMiniDumpForException(_EXCEPTION_POINTERS* e_info, DumpType dumpType);
+	Bool IsInitialized() const { return m_miniDumpInitialized; }
+
 	static void initMiniDumper(const AsciiString& userDirPath);
 	static void shutdownMiniDumper();
+	static void TriggerMiniDump(DumpType dumpType = DumpType_Minimal);
+	static void TriggerMiniDumpForException(_EXCEPTION_POINTERS* e_info, DumpType dumpType = DumpType_Minimal);
+
+private:
 	static LONG WINAPI DumpingExceptionFilter(_EXCEPTION_POINTERS* e_info);
 
-private:
-	void Initialize(const AsciiString& userDirPath);
-	void ShutDown();
-	void CreateMiniDump(DumpType dumpType);
-	void CleanupResources();
-	Bool IsDumpThreadStillRunning() const;
-	void ShutdownDumpThread();
+	Bool Initialize(const AsciiString& userDirPath);
+	Bool IsDumpThreadStillRunning();
+	Bool DumpMiniDump(const Char* filename, _EXCEPTION_POINTERS* e_info, DumpType dumpType);
 
-	// Thread procs
-	static DWORD WINAPI MiniDumpThreadProc(LPVOID lpParam);
-	DWORD ThreadProcInternal();
-
-	// Dump file directory bookkeeping
-	Bool InitializeDumpDirectory(const AsciiString& userDirPath);
-	static void KeepNewestFiles(const std::string& directory, const DumpType dumpType, const Int keepCount);
-
-	// Struct to hold file information
-	struct FileInfo
-	{
-		std::string name;
-		FILETIME lastWriteTime;
-	};
-
-	static bool CompareByLastWriteTime(const FileInfo& a, const FileInfo& b);
-
-private:
-	Bool m_miniDumpInitialized;
-	Bool m_loadedDbgHelp;
-	DumpType m_requestedDumpType;
-
-	// Path buffers
-	Char m_dumpDir[MAX_PATH];
-	Char m_dumpFile[MAX_PATH];
-	WideChar m_executablePath[MAX_PATH];
-
-	// Event handles
+	HANDLE m_dumpThread;
 	HANDLE m_dumpRequested;
 	HANDLE m_dumpComplete;
-	HANDLE m_quitting;
-
-	// Thread handles
-	HANDLE m_dumpThread;
-	DWORD m_dumpThreadId;
+	AsciiString m_userDirPath;
+	DumpType m_requestedDumpType;
+	Bool m_miniDumpInitialized;
 };
 
 extern MiniDumper* TheMiniDumper;
